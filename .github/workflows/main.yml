@@ -1,12 +1,8 @@
 name: Windows Qt Build (Release Candidate)
 
 on:
-  push:
-    branches:
-      - feature-xyz
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
+
 
 jobs:
   build-windows:
