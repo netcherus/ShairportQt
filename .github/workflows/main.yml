@@ -2,8 +2,11 @@ name: Windows Qt Build (Release Candidate)
 
 on:
   push:
-    tags:
-      - "v*-rc*"
+    branches:
+      - feature-xyz
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build-windows:
