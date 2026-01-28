@@ -1,59 +1,57 @@
-name: CI Build
+name: Windows Qt Build (Release Candidate)
 
 on:
   push:
     branches:
-      - main
+      - feature-xyz
   pull_request:
+    branches:
+      - main
+
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-windows:
+    runs-on: windows-latest
 
     steps:
-    - name: Checkout repository
+    - name: Checkout repo
       uses: actions/checkout@v4
+
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 2023.10.19
 
     - name: Install dependencies
       run: |
-        sudo apt update
-        sudo apt install -y \
-          cmake build-essential \
-            libssl-dev libspdlog-dev libgtest-dev libgmock-dev libasound2-dev
-
-    - name: Install sockpp
-      run: |
-        git clone --depth 1 -b v1.0.0 https://github.com/fpagliughi/sockpp.git
-        cd sockpp
-        cmake -B build . \
-          -DCMAKE_INSTALL_PREFIX=/usr \
-          -DSOCKPP_BUILD_STATIC=ON \
-          -DSOCKPP_WITH_OPENSSL=ON
-        cmake --build build
-        sudo cmake --install build
-
-    - name: Set up Qt
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: '6.8.1'
-        target: desktop
-        arch: linux_gcc_64
+        vcpkg install qtbase openssl spdlog sockpp gtest
 
     - name: Configure CMake
       run: |
-        cmake -B build -S . \
+        cmake -S . -B build `
+          -DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake `
           -DCMAKE_BUILD_TYPE=Release
 
     - name: Build
-      run: cmake --build build
+      run: |
+        cmake --build build --config Release
 
-    - name: Run tests
-      run: ./build/ShairportQtTest
+    - name: Deploy Qt runtime (windeployqt)
+      run: |
+        mkdir deploy
+        copy build\Release\*.exe deploy\
+        & "${env:VCPKG_ROOT}\installed\x64-windows\tools\qt6\bin\windeployqt.exe" `
+          deploy\*.exe `
+          --release `
+          --no-translations `
+          --compiler-runtime
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+    - name: Create ZIP
+      run: |
+        Compress-Archive -Path deploy\* -DestinationPath ShairportQt-Windows-RC.zip
+
+    - name: Upload release artifact
+      uses: softprops/action-gh-release@v2
       with:
-        name: ShairportQt
-        path: build/ShairportQt
-        retention-days: 4
-        if-no-files-found: error
+        files: ShairportQt-Windows-RC.zip
+        prerelease: true
