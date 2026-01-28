@@ -1,0 +1,53 @@
+name: Windows Qt Build (Release Candidate)
+
+on:
+  push:
+    tags:
+      - "v*-rc*"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 2023.10.19
+
+    - name: Install dependencies
+      run: |
+        vcpkg install qtbase openssl spdlog sockpp gtest
+
+    - name: Configure CMake
+      run: |
+        cmake -S . -B build `
+          -DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake `
+          -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: |
+        cmake --build build --config Release
+
+    - name: Deploy Qt runtime (windeployqt)
+      run: |
+        mkdir deploy
+        copy build\Release\*.exe deploy\
+        & "${env:VCPKG_ROOT}\installed\x64-windows\tools\qt6\bin\windeployqt.exe" `
+          deploy\*.exe `
+          --release `
+          --no-translations `
+          --compiler-runtime
+
+    - name: Create ZIP
+      run: |
+        Compress-Archive -Path deploy\* -DestinationPath ShairportQt-Windows-RC.zip
+
+    - name: Upload release artifact
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ShairportQt-Windows-RC.zip
+        prerelease: true
