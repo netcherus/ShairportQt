@@ -27,6 +27,11 @@ set(LIBRARY_SOURCES lib/dnssd.cpp lib/RaopServer.cpp lib/LayerCake.cpp lib/base6
         lib/audio/AlsaAudio.cpp lib/audio/AudioPlayer.cpp lib/SuspendInhibitor.cpp lib/Networking.cpp
         lib/DmapParser.cpp lib/KeyboardHook.cpp)
 
+# Add Windows SMTC support for Windows builds
+if (WIN32)
+    list(APPEND LIBRARY_SOURCES lib/WindowsMediaTransportControls.cpp)
+endif()
+
 add_library(ShairLib STATIC ${LIBRARY_SOURCES})
 if (MSVC)
     # we apply the static CRT for MSVC
@@ -94,6 +99,8 @@ if (UNIX)
     target_link_libraries(ShairportQt PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::DBus)
 else()
     target_link_libraries(ShairportQt PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+    # Link Windows Runtime libraries for SMTC
+    target_link_libraries(ShairportQt PRIVATE windowsapp)
 endif()
 
 if (NOT(CMAKE_BUILD_TYPE MATCHES ".*MinSize.*") AND NOT(CMAKE_BUILD_TYPE MATCHES ".*RelWith.*"))

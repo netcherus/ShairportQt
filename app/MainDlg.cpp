@@ -98,6 +98,36 @@ MainDlg::MainDlg(const SharedPtr<IValueCollection>& config, const std::string& c
     }
     ConfigureSystemTray();
 
+    // Initialize Windows Media Transport Controls (SMTC) on Windows
+#ifdef _WIN32
+    try
+    {
+        m_mediaTransportControls = std::make_shared<WindowsMediaTransportControls>();
+        if (WindowsMediaTransportControls::IsAvailable())
+        {
+            if (m_mediaTransportControls->Initialize())
+            {
+                spdlog::info("Windows System Media Transport Controls initialized");
+            }
+            else
+            {
+                spdlog::warn("Failed to initialize Windows System Media Transport Controls");
+                m_mediaTransportControls.reset();
+            }
+        }
+        else
+        {
+            spdlog::debug("Windows System Media Transport Controls not available on this system");
+            m_mediaTransportControls.reset();
+        }
+    }
+    catch (const std::exception& e)
+    {
+        spdlog::warn("Exception initializing Windows Media Transport Controls: {}", e.what());
+        m_mediaTransportControls.reset();
+    }
+#endif // _WIN32
+
     // create a scheduler thread
     m_scheduler = make_unique<std::thread>([this]() { RunScheduler(); });
 
@@ -1183,6 +1213,17 @@ void MainDlg::OnPlayState(bool isPlaying)
     }
     if (wasPlaying != isPlaying)
     {
+        // Update Windows Media Transport Controls
+#ifdef _WIN32
+        if (m_mediaTransportControls && m_mediaTransportControls->IsInitialized())
+        {
+            m_mediaTransportControls->SetPlaybackState(
+                isPlaying ? WindowsMediaTransportControls::PlaybackState::Playing
+                          : WindowsMediaTransportControls::PlaybackState::Paused
+            );
+        }
+#endif // _WIN32
+
         OnUpdateTray();
     }
 }
@@ -1204,6 +1245,34 @@ void MainDlg::OnDmapInfo(QString album, QString track, QString artist)
         m_labelTrackTitleInfo->setText(m_strCurrentTrack);
         m_labelArtistTitleInfo->setText(m_strCurrentArtist);
     }
+
+    // Update Windows Media Transport Controls with new metadata
+#ifdef _WIN32
+    if (m_mediaTransportControls && m_mediaTransportControls->IsInitialized())
+    {
+        WindowsMediaTransportControls::MediaMetadata metadata;
+        metadata.title = m_strCurrentTrack.toStdString();
+        metadata.artist = m_strCurrentArtist.toStdString();
+        metadata.album = m_strCurrentAlbum.toStdString();
+
+        // Get duration and position from RAOP server if available
+        int duration = 0;
+        int position = 0;
+        std::string clientID;
+        {
+            const lock_guard<mutex> lock(m_mtx);
+            if (m_raopServer)
+            {
+                m_raopServer->GetProgress(duration, position, clientID);
+            }
+        }
+        metadata.durationSeconds = duration;
+        metadata.positionSeconds = position;
+
+        m_mediaTransportControls->UpdateMetadata(metadata);
+    }
+#endif // _WIN32
+
     OnUpdateTray();
 }
 
@@ -1352,6 +1421,14 @@ void MainDlg::OnAlbumArt()
                 m_imageAlbumArt->setPixmap(m_pixmapShairport);
                 m_currentAlbumArt.reset();
             }
+            
+            // Update Windows Media Transport Controls - clear album art
+#ifdef _WIN32
+            if (m_mediaTransportControls && m_mediaTransportControls->IsInitialized())
+            {
+                m_mediaTransportControls->ClearAlbumArt();
+            }
+#endif // _WIN32
         }
         else
         {
@@ -1375,6 +1452,18 @@ void MainDlg::OnAlbumArt()
                 {
                     m_imageAlbumArt->setPixmap(*m_currentAlbumArt);
                 }
+                
+                // Update Windows Media Transport Controls with album art
+#ifdef _WIN32
+                if (m_mediaTransportControls && m_mediaTransportControls->IsInitialized())
+                {
+                    m_mediaTransportControls->SetAlbumArt(
+                        reinterpret_cast<const unsigned char*>(item->first.data()),
+                        item->first.size(),
+                        item->second
+                    );
+                }
+#endif // _WIN32
             }
         }
     }

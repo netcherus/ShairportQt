@@ -30,6 +30,10 @@
 #include "DacpService.h"
 #include "KeyboardHook.h"
 
+#ifdef _WIN32
+#include "WindowsMediaTransportControls.h"
+#endif // _WIN32
+
 class TimeLabel;
 
 //
@@ -146,6 +150,10 @@ private:
     DnsHandlePtr                        m_dacpBrowser;
     std::shared_ptr<RaopServer>         m_raopServer;
     std::unique_ptr<std::thread>        m_scheduler;
+    
+#ifdef _WIN32
+    WindowsMediaTransportControlsPtr    m_mediaTransportControls;
+#endif // _WIN32
     
     // Qt Widgets
     // Menu
